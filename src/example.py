@@ -2,7 +2,7 @@
 
 import uuid
 from gql import gql
-from defradb.defradb import (
+from defradb import (
     DefraClient,
     DefraConfig,
     create_mutation_from_dict,

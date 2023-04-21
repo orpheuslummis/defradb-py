@@ -1,0 +1,31 @@
+
+[project]
+name = "defradb"
+dynamic = ["version"]
+license = ""
+requires-python = ">=3.10"
+authors = [ {name = "Orpheus Lummis", email = "o@orpheuslummis.info"} ]
+dependencies = [
+    "gql[all]",
+    "requests",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/sourcenetwork/defradb"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/defradb",
+]
+
+[project.optional-dependencies]
+dev = ["black"]
+test = ["coverage"]
+
