@@ -1,31 +1,20 @@
+[tool.pdm]
 
 [project]
-name = "defradb"
-dynamic = ["version"]
-license = ""
-requires-python = ">=3.10"
-authors = [ {name = "Orpheus Lummis", email = "o@orpheuslummis.info"} ]
-dependencies = [
-    "gql[all]",
-    "requests",
+name = "defradb-py"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Orpheus Lummis", email = "o@orpheuslummis.info"},
 ]
-
-[project.urls]
-"Homepage" = "https://github.com/sourcenetwork/defradb"
+dependencies = [
+    "gql[all]>=3.4.0",
+    "requests>=2.28.2",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-path = "src/__init__.py"
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/defradb",
-]
-
-[project.optional-dependencies]
-dev = ["black"]
-test = ["coverage"]
-
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
