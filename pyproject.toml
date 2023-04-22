@@ -1,7 +1,7 @@
 [tool.pdm]
 
 [project]
-name = "defradb-py"
+name = "defradb"
 version = "0.1.0"
 description = ""
 authors = [
