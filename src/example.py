@@ -10,8 +10,8 @@ from defradb import (
 
 # Configuring the client.
 endpoint = "http://localhost:9181/api/v0/"
-config = DefraConfig(endpoint)
-client = DefraClient(config)
+cfg = DefraConfig(endpoint)
+client = DefraClient(cfg)
 
 # Loading a schema as a string.
 typename = "Parameters"
