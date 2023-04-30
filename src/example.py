@@ -5,7 +5,7 @@ from gql import gql
 from defradb import (
     DefraClient,
     DefraConfig,
-    create_mutation_from_dict,
+    dict_to_create_query,
 )
 
 # Configuring the client.
@@ -30,7 +30,7 @@ data = {
     "b": uuid.uuid4().hex,
     "c": uuid.uuid4().hex,
 }
-request = create_mutation_from_dict(typename, data)
+request = dict_to_create_query(typename, data)
 response_mutation = client.request(request)
 
 # Obtaining a list of all these documents.

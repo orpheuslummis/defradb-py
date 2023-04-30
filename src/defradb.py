@@ -5,6 +5,7 @@ import base58
 import gql.transport.exceptions as gql_exceptions
 import grpc
 import multiaddr
+import multiaddr.protocols
 import requests
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
@@ -12,8 +13,6 @@ from gql.transport.requests import RequestsHTTPTransport
 from graphql import DocumentNode
 
 from .api import api_pb2, api_pb2_grpc
-
-# TODO error handling
 
 ROUTE_GRAPHQL = "graphql"
 ROUTE_SCHEMA_LOAD = "schema/load"
@@ -27,22 +26,18 @@ class DefraConfig:
     """
 
     api_url: str = "localhost:9181/api/v0"
-    rpc_url: str = "localhost:9161"
+    tcp_multiaddr: str = "localhost:9161"
     scheme = "http://"
 
 
 class DefraClient:
     """
     Client for DefraDB, providing methods for interacting with the DefraDB node.
-    Most interactions with DefraDB are via the graphql endpoint, using the Defra query language,
-    by passing a valid gql object.
-
-    Synchronous.
+    Interactions with DefraDB via the graphql endpoint use the Defra query language, by
+    passing a valid gql query object.s
+    Interactions with DefraDB via the rpc endpoint use the Defra protobuf API.
+    This is the synchronous client.
     """
-
-    url = None
-    gql_sync_transport = None
-    gql_async_transport = None
 
     def __init__(self, cfg):
         self.cfg: DefraConfig = cfg
@@ -77,24 +72,75 @@ class DefraClient:
                     raise Exception("Failed to load schema", error)
         return response_json
 
-    def get_peerid(self) -> str:
+    def create_doc(self, typename: str, data: dict):
         """
-        Get the peerid of the DefraDB node.
+        Create a document in the DefraDB node.
         """
+        data_string = json.dumps(data).replace('"', '\\"')
+        request = f"""mutation {{
+            create_{typename} (data: "{data_string}") {{
+                _key
+            }}
+        }}"""
+        response = self.request(gql(request))
+        return response
+
+    def set_replicator(self, collections: list[str], maddr: str) -> str:
+        """
+        Set a replicator in the DefraDB node.
+        """
+        client = self._get_rpc_client(self.cfg.tcp_multiaddr)
+        maddr = multiaddr.Multiaddr(maddr)
+        request = api_pb2.SetReplicatorRequest(  # type: ignore
+            collections=collections, addr=maddr.to_bytes()
+        )
+        response = client.SetReplicator(request)
+        peerIDstr = str(base58.b58encode(response.peerID))
+        return peerIDstr
+
+    def delete_replicator(self, peerID: str) -> str:
+        """
+        Delete a replicator in the DefraDB node.
+        """
+        client = self._get_rpc_client(self.cfg.tcp_multiaddr)
+        peerIDbytes = base58.b58decode(peerID)
+        request = api_pb2.DeleteReplicatorRequest(peerID=peerIDbytes)  # type: ignore
+        response = client.DeleteReplicator(request)
+        response_peerIDstr = str(base58.b58encode(response.peerID))
+        return response_peerIDstr
+
+    def get_all_replicators(self) -> list:
+        """
+        Get all replicators in the DefraDB node.
+        """
+        client = self._get_rpc_client(self.cfg.tcp_multiaddr)
+        request = api_pb2.GetAllReplicatorRequest()  # type: ignore
+        response = client.GetAllReplicators(request)
+        replicators = []
+        for r in response.replicators:
+            replicator_id = base58.b58encode(r.info.id).decode()
+            addrs = multiaddr.Multiaddr(r.info.addrs)
+            replicators.append(
+                {"id": replicator_id, "addrs": addrs, "schemas": [s for s in r.schemas]}
+            )
+        return replicators
+
+    def _get_rpc_client(self, addr: str) -> api_pb2_grpc.ServiceStub:
+        addr = _multiaddr_to_porthost(addr)
+        channel = grpc.insecure_channel(addr)
+        clientrpc = api_pb2_grpc.ServiceStub(channel)
+        return clientrpc
+
+    def _get_peerid(self) -> str:
         url = f"{self.cfg.scheme}{self.cfg.api_url}{ROUTE_PEERID}"
         response = requests.get(url)
         if response.status_code != 200:
             raise Exception("Failed to get peerid", response.text)
-        return response.json()["data"]["peerID"]
-
-    def set_collection_replication(self, collectionName: str, peerURL: str):
-        pass
-
-    def get_all_replicators(self):
-        pass
+        peerID = response.json()["data"]["peerID"]
+        return peerID
 
 
-def create_mutation_from_dict(schema_type: str, data: dict) -> DocumentNode:
+def dict_to_create_query(schema_type: str, data: dict) -> DocumentNode:
     """
     Create a mutation to create a new document of a specific type.
     """
@@ -109,7 +155,7 @@ def create_mutation_from_dict(schema_type: str, data: dict) -> DocumentNode:
     return gql(request_string)
 
 
-def update_mutation_from_dict(schema_type: str, data: dict) -> DocumentNode:
+def dict_to_update_query(schema_type: str, data: dict) -> DocumentNode:
     """
     Create a mutation to create a new document of a specific type.
     """
@@ -122,3 +168,10 @@ def update_mutation_from_dict(schema_type: str, data: dict) -> DocumentNode:
         }}
     """
     return gql(request_string)
+
+
+def _multiaddr_to_porthost(maddr: str) -> str:
+    m = multiaddr.Multiaddr(maddr)
+    ip = m.value_for_protocol(multiaddr.protocols.P_IP4)
+    port = m.value_for_protocol(multiaddr.protocols.P_TCP)
+    return f"{ip}:{port}"
